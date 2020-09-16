@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# nitroshuf
+# nitroshuf - Command Line Interface (CLI) for Nitrogen
 # Script written by lapingenieur
 
 v=3.2	# version
