@@ -383,7 +383,7 @@ EOF
 }
 
 choose
-test $# = 0 && mkfile
+test $# = 0 && mk_file
 
 until test $# = 0 || test $z = 1
 do
