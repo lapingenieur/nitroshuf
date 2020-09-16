@@ -1,0 +1,441 @@
+#!/bin/bash
+#
+# nitroshuf
+# Script written by lapingenieur
+
+v=3.2	# version
+a=""	# picture 1
+b=""	# picture 2
+c=""	# text of new save file
+ca=""	# text of current save file
+d=""	# awnser / prompt
+
+dir=""	# file dir
+l=""	# file list
+ext=""	# file extension
+
+z=0	# until loop finished
+nbs=1	# screen number
+p_go=0	# in prompt mode ?
+
+ca="$(cat ~/.config/nitrogen/bg-saved.cfg)"
+
+if test "$1" != "-g" || test "$1" != "--generate"
+then
+	if test -f ~/.config/nitroshuf/config && grep -qE "^dir" ~/.config/nitroshuf/config
+	then
+		if echo "$(grep -E "^dir" ~/.config/nitroshuf/config | tail -n 1 | sed "s/^[^=]*=//g" | sed "s/ *//g")" | grep -qE "^([/~].*/)|/$"
+		then
+			dir="$(echo "$(grep -E "^dir" ~/.config/nitroshuf/config | tail -n 1 | sed "s/^[^=]*=//g" | sed "s/ *//g")" | grep -E "^([/~].*/)|/$")"
+		else
+			echo -e "\033[0;31;47mERR : \033[0;31m can't determine image directory." >> /dev/stderr
+			echo -e "Please fix your ~/.config/nitroshuf/config file or generate it with 'nitroshuf -g'.\033[0m" >> /dev/stderr
+			exit 1
+		fi
+	else
+		echo -e "\033[0;31;47mERR : \033[0;31m can't determine image directory." >> /dev/stderr
+		echo -e "Please fix your ~/.config/nitroshuf/config file or generate it with 'nitroshuf -g'.\033[0m" >> /dev/stderr
+		exit 2
+	fi
+	if test -f ~/.config/nitroshuf/config && grep -qE "^file_type" ~/.config/nitroshuf/config
+	then
+		ext="$(grep -E "^file_type" ~/.config/nitroshuf/config | tail -n 1 | sed "s/^[^=]*=//g" | sed "s/ *//g" | sed "s/\./\\./g")"
+	fi
+fi
+
+mk_choose(){
+		if test -f ~/.config/nitroshuf/config && grep -qE "^nb_screen" ~/.config/nitroshuf/config
+		then
+			if echo "$(grep -E "^nb_screen" ~/.config/nitroshuf/config | tail -n 1 | sed "s/^[^=]*=//g" | sed "s/ *//g")" | grep -qE "^[0-9+]$"
+			then
+				nbs="$(grep -E "^nb_screen" ~/.config/nitroshuf/config | tail -n 1 | sed "s/^[^=]*=//g" | sed "s/ *//g")"
+			else
+				echo -e "\033[0;31mERR: didn't understand screen number in config file ('$(grep -E "^nb_screen" ~/.config/nitroshuf/config | tail -n 1 | sed "s/^[^=]*=//g" | sed "s/ *//g")')\033[0m"
+				echo -n "How many screens do you have ? : "
+				read d
+				if echo "$d" | grep -E "^[0-9]+$"
+				then
+					nbs="$d"
+				else
+					echo -e "\033[0;31mERR: didn't understand awnsered screen number ('$1'). Considering there's \033[1m1 (one)\033[0;31m screen.\033[0m"
+				fi
+			fi
+		fi
+
+		test "$1" = "-a" && ca="$(cat ~/.config/nitrogen/bg-saved.cfg)"	# regenerate $ca if $1 = -a
+		count=0
+		c=""
+		until test $count = $nbs
+		do
+			a="$(ls $dir -1 | grep -E "$ext$" | shuf -n 1)"
+			c="$c[xin_$count]
+file=$dir$a
+mode=5
+bgcolor=#000000
+
+"
+			count=$(($count + 1))
+		done
+}
+
+choose(){
+	if test "$1" = "-n" || test "$1" = "-a"
+	then
+		echo -ne "\033[0;33;1mReally regenerate - stuff will be lost ? (y/n) : \033[0m"
+		read d
+		case $d in
+			"y" | "yes" ) echo -e "\033[0;35mGeneration...\033[0m"
+				test "$1" = "-a" && mk_choose -a || mk_choose ;;
+			"n" | "no" ) echo -e "\033[0;35mCancelled.\033[0m" ;;
+			* ) echo "Didn't understand '$d'" ;;
+		esac
+	else
+		mk_choose
+	fi
+}
+
+mk_file(){
+	echo -e "  === NEW SAVE FILE ===\n\033[0;34m"
+	echo -n "$c"
+	echo -e "\033[0m  === ===\n"
+	echo -n "Save to config file ? (y/n) : "
+	read d
+	case "$d" in
+		"y" | "yes" )
+			mv ~/.config/nitrogen/bg-saved.cfg /tmp/nitroshuf.$$
+			touch ~/.config/nitrogen/bg-saved.cfg
+			echo "$c" >> ~/.config/nitrogen/bg-saved.cfg
+			echo -e "\033[0;34mOld config saved into \033[0;32m$(ls /tmp/nitroshuf.$$)\033[0m"
+			ca="$(cat ~/.config/nitrogen/bg-saved.cfg)"
+			;;
+		"n" | "no" ) echo "New config file not saved" ;;
+		* ) echo "Didn't understand '$d'" ;;
+	esac
+}
+
+p_print(){
+	case $1 in
+		"d" | "diff" | "difference" )
+			if test $p_go = 1
+			then
+				echo -e "\033[0mfile : \n\033[0;34m"
+				cat ~/.config/nitrogen/bg-saved.cfg
+				echo ""
+				echo -e "\033[0mcurrent : \n\033[0;34m"
+				echo "$ca"
+				echo -e "\033[0m\nnew : \n\033[0;34m"
+				echo -n "$c"
+			else
+				echo -e "\033[0;31mERR: print : can't print diff when not running interactive mode...\033[0m"
+			fi
+			;;
+		"n" | "new" )
+			if test $p_go = 1
+			then
+				echo -e "\033[0m\nnew : \n\033[0;34m"
+				echo -n "$c" 
+			else
+				echo -e "\033[0;31mERR: print : can't print new when not running interactive mode...\033[0m"
+			fi
+			;;
+		"c" | "current" ) echo -e "\033[0mcurrent : \n\033[0;34m" ; 
+			echo "$ca" ; echo "" ;;
+		"f" | "file" ) echo -e "\033[0mfile : \n\033[0;34m" ; 
+			cat ~/.config/nitrogen/bg-saved.cfg ; echo "" ;;
+		"h" | "help" )
+			echo -en "\033[0;34m"
+			cat << EOF
+nitroshuf/print - print nitrogen configs
+usage : $ print ARG
+ARG can be :
+  n new         print new config
+  c current     print current config
+  f file        print config file
+  d diff        print current and new configs
+  h help        print this help
+only the first argument is read
+EOF
+			;;
+		* ) echo -e "\033[0;31mERR: print : didn't understand this argument ('$1')" ;;
+	esac
+	echo -en "\033[0m"
+}
+
+p_file(){
+	case $1 in
+		"l" | "last" )
+			echo -e "\033[0mfile : \n\033[0;34m"
+			cat ~/.config/nitrogen/bg-saved.cfg | grep --color=never "file=" | grep -oE "[^/]+$"
+			echo ""
+			echo -e "\033[0mcurrent : \n\033[0;34m"
+			echo "$ca" | grep --color=never "file=" | grep -oE "[^/]+$"
+			if test $p_go = 1
+			then
+				echo -e "\033[0m\nnew : \n\033[0;34m"
+				echo "$c" | grep --color=never "file=" | grep -oE "[^/]+$"
+			fi
+			;;
+		"" | "d" | "diff" | "difference" )
+			echo -e "\033[0mfile : \n\033[0;34m"
+			cat ~/.config/nitrogen/bg-saved.cfg | grep --color=never "file="
+			echo ""
+			echo -e "\033[0mcurrent : \n\033[0;34m"
+			echo "$ca" | grep --color=never "file="
+			if test $p_go = 1
+			then
+				echo -e "\033[0m\nnew : \n\033[0;34m"
+				echo "$c" | grep --color=never "file="
+			fi
+			;;
+		"h" | "help" )
+			echo -en "\033[0;34m"
+			cat << EOF
+nitroshuf/file - print name of bkgnd images
+usage : $ file ARG
+ARG can be :
+  <without>     print path to images
+  l last        print only image name
+  h help        print this help
+only the first argument is read
+EOF
+				;;
+		* ) echo -e "\033[0;31mERR: file : didn't understand this argument ('$1')" ;;
+	esac
+	echo -en "\033[0m"
+}
+
+p_show(){
+	case $1 in
+		"n" | "new" )
+			if test $p_go = 1
+			then
+				if echo "$2" | grep -qE "[0-9]+"
+				then
+					echo -e "\033[0;34mOpening new n'$2..."
+					xdg-open "$(echo "$c" | grep -E "^file=" | sed "s/^file=//g" | sed -n "${2}p" )" &
+					echo -en "\033[0;35mPress enter to continue..."
+					read
+				elif test "$2" = ""
+				then
+					echo -e "\033[0;34mOpening new..."
+					lines=$(echo "$c" | grep -E "^file=" | wc -l)
+					count=0
+					until test $count = $lines
+					do
+						count=$(($count + 1))
+						xdg-open "$(echo "$c" | grep -E "^file=" | sed "s/^file=//g" | sed -n "${count}p" )" &
+					done
+					echo -en "\033[0;35mPress enter to continue..."
+					read
+				else
+					echo -e "\033[0;31mERR: show new : didn't understand this argument ('$1'("
+				fi
+			else
+				echo -e "\033[0;31mERR: show : can't open new config images when not running interactive mode...\033[0m"
+			fi
+			;;
+		"c" | "current" )
+			if echo "$2" | grep -qE "[0-9]+"
+			then
+				echo -e "\033[0;34mOpening current n'$2..."
+				xdg-open "$(echo "$ca" | grep -E "^file=" | sed "s/^file=//g" | sed -n "${2}p" )" &
+				echo -en "\033[0;35mPress enter to continue..."
+				read
+			elif test "$2" = ""
+			then
+				echo -e "\033[0;34mOpening current..."
+				lines=$(echo "$c" | grep -E "^file=" | wc -l)
+				count=0
+				until test $count = $lines
+				do
+					count=$(($count + 1))
+					xdg-open "$(echo "$ca" | grep -E "^file=" | sed "s/^file=//g" | sed -n "${count}p" )" &
+				done
+				echo -en "\033[0;35mPress enter to continue..."
+				read
+			else
+				echo -e "\033[0;31mERR: show new : didn't understand this argument ('$1'("
+			fi
+			;;
+		"f" | "file" )
+			if echo "$2" | grep -qE "[0-9]+"
+			then
+				echo -e "\033[0;34mOpening current n'$2..."
+				xdg-open "$(cat ~/.config/nitrogen/bg-saved.cfg | grep -E "^file=" | sed "s/^file=//g" | sed -n "${2}p" )" &
+				echo -en "\033[0;35mPress enter to continue..."
+				read
+			elif test "$2" = ""
+			then
+				echo -e "\033[0;34mOpening current..."
+				lines=$(echo "$c" | grep -E "^file=" | wc -l)
+				count=0
+				until test $count = $lines
+				do
+					count=$(($count + 1))
+					xdg-open "$(cat ~/.config/nitrogen/bg-saved.cfg | grep -E "^file=" | sed "s/^file=//g" | sed -n "${count}p" )" &
+				done
+				echo -en "\033[0;35mPress enter to continue..."
+				read
+			else
+				echo -e "\033[0;31mERR: show new : didn't understand this argument ('$1'("
+			fi
+			;;
+		"" )
+			p_show n
+			test $p_go = 1 && p_show c
+			;;
+		"h" | "help" )
+			echo -en "\033[0;34m"
+			cat << EOF
+nitroshuf/show - open bkgnd images in viewer
+usage : $ show ARG AGR2
+ARG can be :
+  n new         open new config images
+  c current     open current config images
+  f file        open config file images
+  <without>     both of the 2 above
+  h help        print this help
+if ARG is 'n' or 'c', ARG2 can be :
+  <number>      open Nth image of ARG config
+only the first argument is read
+EOF
+				;;
+		* ) echo -e "\033[0;31mERR: show : didn't understand this argument ('$1')" ;;
+	esac
+	echo -en "\033[0m"
+}
+
+p_edit(){
+	case "$1" in
+		"n" | "new" ) echo "$c" >> /tmp/nitroshuf.ed.$$ ; $EDITOR /tmp/nitroshuf.ed.$$ ; c="$(cat /tmp/nitroshuf.ed.$$)" ; rm /tmp/nitroshuf.ed.$$ ;;
+		"c" | "current" ) echo "$ca" >> /tmp/nitroshuf.ed.$$ ; $EDITOR /tmp/nitroshuf.ed.$$ ; ca="$(cat /tmp/nitroshuf.ed.$$)" ; rm /tmp/nitroshuf.ed.$$ ;;
+		"f" | "file" ) $EDITOR ~/.config/nitrogen/bg-saved.cfg ;;
+		"h" | "help" )
+			echo -en "\033[0;34m"
+			cat << EOF
+nitroshuf/edit - edit the configs (tmp)
+usage : $ edit OPT
+OPT can be :
+  n new         edit new config images
+  c current     edit current config images
+  f file        edit the actual config file
+  h help        print this help
+only the first argument is read
+EOF
+				;;
+		* ) echo -e "\033[0;31mERR: edit : didn't understand this argument ('$1')" ;;
+	esac
+}
+
+mkprompt(){
+	echo -e "  === PROMPT MODE ===\n\033[0;34m"
+	zb=0	# bis z var
+	until test $z = 1
+	do
+		echo -en "\033[0;35mnitroshuf $ \033[0m"
+		read d		# d = complete command, db = $0, dc = ($*-$0)
+		db="$(echo "$d" | grep -oE "^[^ ]+")"
+		dc="$(echo "$d" | sed "s/^[^ ][^ ]*//g" )"
+
+		case "$(echo "$d" | grep -oE "^[^ ]+")" in
+			"q" | "quit" ) z=1 ;;
+			"p" | "print" ) p_print $dc ;;
+			"f" | "file" | "files" ) p_file $dc ;;
+			"s" | "show" ) p_show $dc ;;
+			"w" | "write" | "m" | "mk" | "mkfile" ) mk_file ;;
+			"v" | "vers" | "version" ) echo -e "nitroshuf v$v - Command Line Interface (CLI) for Nitrogen\nmade by lapingenieur" ;;
+			"c" | "choose" ) choose -n ;;
+			"ca" | "choose-all" ) choose -a ;;
+			"a" | "save" )
+				cp ~/.config/nitrogen/bg-saved.cfg /tmp/bg-saved.cfg.nitroshuf.$$
+				echo -e "\033[0;35mSaved current config to /tmp/bg-saved.cfg.nitroshuf.$$\033[0m" ;;
+			"n" | "nir" ) nitrogen --restore ;;
+			"e" | "edit" ) p_edit $dc ; test $# != 0 && shift ;;
+			"r" | "refresh" | "sync" ) ca="$(cat ~/.config/nitrogen/bg-saved.cfg)" ;;
+			"h" | "help" )
+				echo -en "\033[0;34m"
+				cat << EOF
+nitroshuf/prompt - nitroshuf's interactive prompt
+usage : $ COM ARG1 ARG2 ...
+COM can be :
+  q quit        exit from the prompt
+  h help        print this help
+  v vers version : print nitroshuf version
+  p print       print nitrogen configs
+  f file files  print name of bkgnd images
+  s show        open bkg images in viewer
+  w write       write new config
+  m mk mkfile   same as above
+  n nir         restart/restore nitrogen
+  c choose      regenerate new config
+  a save        save current config file
+  e edit        edit current config with EDITOR
+  r refresh sync resyncronize current with file
+ARG1 ARG2 and following are given to COM
+NOTE: most of this can be done from the shell
+EOF
+				;;
+			* ) echo -e "\033[0;31mERR: prompt : didn't understand this command ('$d')\033[0m" ;;
+		esac
+	done
+
+	unset zb
+}
+
+choose
+test $# = 0 && mkfile
+
+until test $# = 0 || test $z = 1
+do
+	case $1 in
+		"-g" | "--generate" )
+			read -p "Generate a new config file (every thing will be erreased) ? (y/n) : " d
+			case $d in
+				"y" | "yes" ) 
+					touch ~/.config/nitroshuf/config
+					cat > ~/.config/nitroshuf/config << EOF
+nb_screen = 1
+dir = ~/Images
+file_type = jpg
+EOF
+					;;
+				"n" | "no" ) exit 0 ;;
+				* ) exit 4 ;;
+			esac
+			;;
+		"-p" | "--prompt" ) p_go=1 ; mkprompt ; p_go=0 ;;
+		"-v" | "--vers" | "--version" ) echo -e "nitroshuf v$v - Command Line Interface (CLI) for Nitrogen\nmade by lapingenieur" ;;
+		"-P" | "--print" ) p_print $2 ; test $# != 0 && shift ;;
+		"-F" | "--file" | "--files" ) p_file $2 ; test $# != 0 && shift ;;
+		"-S" | "--show" ) p_show $2 ; test $# != 0 && shift ;;
+		"-A" | "save" )
+			cp ~/.config/nitrogen/bg-saved.cfg /tmp/bg-saved.cfg.nitroshuf.$$
+			echo -e "\033[0;35mSaved current config to /tmp/bg-saved.cfg.nitroshuf.$$\033[0m" ;;
+		"-E" | "--edit" ) p_edit $2 ; test $# != 0 && shift ;;
+		"-N" | "--nir" ) nitrogen --restore ;;
+		"-h" | "--help" )
+			echo -en "\033[0;34m"
+			cat << EOF
+nitroshuf - manage nitrogen's config from CLI
+            with interactive interface
+usage : nitroshuf OPT...
+OPT can be :
+  -p --prompt   run the builtin prompt
+  -v --vers --version : print nitroshuf version
+  -h --help     print this help
+  -P --print    print nitrogen config
+  -F --file     print name of bkgnd images
+  -S --show     open bkg images in viewer
+  -A --save     save current config file
+  -E --edit     edit current config with EDITOR
+  -N --nir      restart/restore nitrogen
+  <without>     generate and write config
+ARG1 ARG2 and following are given to COM
+NOTE: in some cases, 2 arguments are used once
+  with -P, -F and -S flags
+EOF
+			;;
+		* ) echo -e "\033[0;31mERR: didn't understand this argument ('$1')\033[0m" ;;
+	esac
+	shift
+done
