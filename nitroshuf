@@ -420,6 +420,7 @@ nitroshuf - manage nitrogen's config from CLI
             with interactive interface
 usage : nitroshuf OPT...
 OPT can be :
+  -g --generate generate nitroshuf config file
   -p --prompt   run the builtin prompt
   -v --vers --version : print nitroshuf version
   -h --help     print this help
